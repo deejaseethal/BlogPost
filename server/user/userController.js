@@ -1,26 +1,37 @@
 const { UserModel } = require("./userModel");
 const { mongoose } = require("mongoose");
+const { generateAccessToken } = require("../utils/generateAccessToken.js");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
 const createUser = async (req, res) => {
   try {
     console.log("hii");
-    const { firstName, lastName, userName, email } = req.body;
-    if (!firstName || !lastName || !userName || !email) {
+    const { firstName, lastName, userName, email, password } = req.body;
+    if (!firstName || !lastName || !userName || !email || !password) {
       return res.status(400).json({ message: "All fields required" });
     }
     const userExist = await UserModel.find({ email });
-    console.log(userExist.length, "userExist");
+
     if (userExist.length !== 0) {
       return res.status(400).json({ message: "User Already Exist" });
     }
-    const newBlog = new UserModel({
-      firstName,
-      lastName,
-      userName,
-      email,
+
+    bcrypt.genSalt(saltRounds, function (err, salt) {
+      bcrypt.hash(password, salt, async function (err, hash) {
+        const newUser = new UserModel({
+          firstName,
+          lastName,
+          userName,
+          email,
+          password: hash,
+        });
+        await newUser.save();
+        return res
+          .status(200)
+          .json({ message: "New User Created", Data: newUser });
+      });
     });
-    await newBlog.save();
-    return res.status(200).json({ message: "New User Created", Data: newBlog });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -110,4 +121,63 @@ const deleteUser = async (req, res) => {
   }
 };
 
-module.exports = { createUser, getAllUsers, getOneUser, editUser, deleteUser };
+const userLogin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: "All fields required" });
+    }
+    let arr = await UserModel.find({ email });
+    console.log("arr", arr);
+    const user = arr[0];
+    console.log("userlin123", user);
+    console.log(user, "user");
+
+    //console.log("Hii user", user);
+    if (!user) {
+      return res.status(404).json({ message: "User Doesn't Exist" });
+    }
+    // console.log("password", user.firstName);
+
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (!passwordMatch) {
+      return res.status(400).json({ message: "Incorrect Password" });
+    }
+    const copyUser = { ...user.toObject() };
+    console.log("Copy User", copyUser);
+    console.log(user, "user");
+    delete copyUser.password;
+    console.log(copyUser, "copyUser");
+    const accessToken = generateAccessToken(copyUser);
+    // console.log(accessToken, "accessToken");
+    return res.status(200).json({
+      message: "Login succesfull",
+      data: user._id,
+      Token: accessToken,
+    });
+  } catch (error) {
+    console.log("err", error);
+    return res.status(500).json({ message: "Server Error", error: error });
+  }
+};
+
+const user = async (req, res) => {
+  try {
+    console.log("RequestUser", req.user);
+    return res
+      .status(200)
+      .json({ message: "UserData Returned", userData: req.user });
+  } catch (error) {
+    console.log({ message: "Error", error });
+  }
+};
+
+module.exports = {
+  createUser,
+  getAllUsers,
+  getOneUser,
+  editUser,
+  deleteUser,
+  userLogin,
+  user,
+};

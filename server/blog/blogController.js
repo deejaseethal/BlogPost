@@ -48,7 +48,7 @@ const getOneBlog = async (req, res) => {
       return res.status(404).json({ message: "Id Required" });
     }
 
-    const blog = await BlogModel.findById(id);
+    const blog = await BlogModel.findById(id).populate("userId").exec();
     if (!blog) {
       return res.status(404).json({ message: `No blog with Id ${id}` });
     }
